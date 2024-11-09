@@ -1,16 +1,21 @@
-
+import React, { useState, useEffect } from 'react';
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useState, useEffect } from 'react';
 import { FIREBASE_AUTH } from './Firebaseconfig'; 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-// import Navigation from './Navigation'; 
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import HomeScreen from './HomeScreen';
+import ProfileScreen from './ProfileScreen';
+import Ionicons from '@expo/vector-icons/Ionicons'; 
 
+
+
+const Tab = createBottomTabNavigator();
 
 const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogin, handleAuthentication }) => {
   return (
     <View style={styles.authContainer}>
-      <Text style={styles.title}>{isLogin ? 'Sign in' : 'Sign up'} </Text>
-      
+      <Text style={styles.title}>{isLogin ? 'Sign in' : 'Sign up'}</Text>
 
       <TextInput
         style={styles.input}
@@ -27,7 +32,7 @@ const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogi
         placeholder="Password"
         secureTextEntry
       />
-       
+
       <View style={styles.buttonContainer}>
         <Button title={isLogin ? 'Sign In' : 'Sign Up'} onPress={handleAuthentication} color="#3498db" />
       </View>
@@ -39,15 +44,32 @@ const AuthScreen = ({ email, setEmail, password, setPassword, isLogin, setIsLogi
       </View>
     </View>
   );
-}
+};
 
-const AuthenticatedScreen = ({ user, handleAuthentication }) => {
+const AuthenticatedScreen = ({ user, handleLogout }) => {
   return (
-    <View style={styles.authContainer}>
-      <Text style={styles.title}>Welcome</Text>
-      <Text style={styles.emailText}>{user.email}</Text>
-      <Button title="Logout" onPress={handleAuthentication} color="#e74c3c" />
-    </View>
+    <NavigationContainer>
+      <Tab.Navigator
+    screenOptions={({ route }) => ({  // Navigator can be customized using screenOptions
+          tabBarIcon: ({ focused, color, size }) => { 
+            // Function tabBarIcon is given the focused state,
+	    // color and size params
+            let iconName;
+
+            if (route.name === 'Home') {
+              iconName = 'home';
+            } else if (route.name === 'Profile') {
+              iconName = 'person';
+            }
+
+            return <Ionicons name={iconName} size={size} color={color} />;   //it returns an icon component
+          },
+        })}>
+  <Tab.Screen name="Home" component={HomeScreen} />
+  <Tab.Screen name="Profile" component={ProfileScreen} />
+</Tab.Navigator>
+
+    </NavigationContainer>
   );
 };
 
@@ -70,7 +92,7 @@ export default App = () => {
   const handleAuthentication = async () => {
     try {
       if (user) {
-        console.log('User logged out succesfully!');
+        console.log('User logged out successfully!');
         await signOut(auth);
       } else {
         if (isLogin) {
@@ -86,13 +108,18 @@ export default App = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null); // Reset user after logging out
+    setEmail('');
+    setPassword('');
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {user ? (
-        // Show user's email if user is authenticated
-        <AuthenticatedScreen user={user} handleAuthentication={handleAuthentication} />
+        <AuthenticatedScreen user={user} handleLogout={handleLogout} />
       ) : (
-        // Show sign-in or sign-up form if user is not authenticated
         <AuthScreen
           email={email}
           setEmail={setEmail}
@@ -105,7 +132,8 @@ export default App = () => {
       )}
     </ScrollView>
   );
-}
+};
+
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
@@ -145,9 +173,19 @@ const styles = StyleSheet.create({
   bottomContainer: {
     marginTop: 20,
   },
-  emailText: {
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#3498db',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+  },
+  headerText: {
     fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 20,
+    color: '#fff',
+    marginBottom: 8,
   },
 });

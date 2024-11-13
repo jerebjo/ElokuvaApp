@@ -66,7 +66,7 @@ const AuthenticatedScreen = ({ user, handleLogout }) => {
           },
         })}>
   <Tab.Screen options={{headerShown: false}}name="Home" component={HomeScreen} />
-  <Tab.Screen name="Profile" component={ProfileScreen} />
+  <Tab.Screen options={{headerShown: false}}name="Profile" component={ProfileScreen} />
 </Tab.Navigator>
 
     </NavigationContainer>

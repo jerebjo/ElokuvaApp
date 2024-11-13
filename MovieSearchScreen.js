@@ -44,7 +44,7 @@ const handleMovieSelect = (movie) => {
     <View style={styles.container}>
       <TextInput
         style={styles.searchInput}
-        placeholder="Etsi elokuvaa..."
+        placeholder="Search for a movie..."
         value={query}
         onChangeText={searchMovies}
       />

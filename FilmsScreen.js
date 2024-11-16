@@ -8,6 +8,7 @@ export default function FilmsScreen() {
   const auth = getAuth();
   const db = getFirestore();
 
+  // Hakee käyttäjän arvostelut Firestoresta
   const fetchUserReviews = async () => {
     const user = auth.currentUser;
     if (user) {
@@ -26,6 +27,7 @@ export default function FilmsScreen() {
     }
   };
 
+  // Arvostelun poisto
   const handleDeleteReview = async (reviewId) => {
     try {
       await deleteDoc(doc(db, 'reviews', reviewId));
@@ -41,6 +43,9 @@ export default function FilmsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Otsikko lisätty */}
+      <Text style={styles.title}>Your Films</Text>
+
       {reviews.length > 0 ? (
         <FlatList
           data={reviews}
@@ -89,6 +94,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#333333',
     padding: 10,
+  },
+  // Otsikon tyyli
+  title: {
+    color: '#FFD700',
+    fontSize: 20,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   text: {
     color: '#FFD700',

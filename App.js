@@ -60,24 +60,29 @@ const ProfileStackScreen = () => {
 const AuthenticatedScreen = ({ user, handleLogout }) => {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ color, size }) => {
-            let iconName;
-            if (route.name === 'Home') {
-              iconName = 'home';
-            } else if (route.name === 'Profile') {
-              iconName = 'person';
-            }
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: '#3498db',
-          tabBarInactiveTintColor: 'gray',
-        })}
-      >
-        <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Profile" component={ProfileStackScreen} options={{ headerShown: false }} />
-      </Tab.Navigator>
+     <Tab.Navigator
+  screenOptions={({ route }) => ({
+    tabBarIcon: ({ color, size }) => {
+      let iconName;
+      if (route.name === 'Home') {
+        iconName = 'home';
+      } else if (route.name === 'Profile') {
+        iconName = 'person';
+      }
+      return <Ionicons name={iconName} size={size} color={color} />;
+    },
+    tabBarActiveTintColor: '#3498db', // Aktiivinen kuvakkeen väri
+    tabBarInactiveTintColor: 'gray',  // Passiivinen kuvakkeen väri
+    tabBarStyle: {
+      backgroundColor: '#2a2a2a',    // Taustaväri tab-palkille
+      borderTopWidth: 0,             // Poistaa mahdollisen tab-palkin yläreunan viivan
+    },
+  })}
+>
+  <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+  <Tab.Screen name="Profile" component={ProfileStackScreen} options={{ headerShown: false }} />
+  
+</Tab.Navigator>
     </NavigationContainer>
   );
 };

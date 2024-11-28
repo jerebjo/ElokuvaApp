@@ -70,7 +70,7 @@ export default function ReviewForm({ selectedMovie, onReviewSubmit, existingRevi
         value={rating}
         onChangeText={setRating}
         keyboardType="numeric"
-      />
+      /> 
       <Button title={existingReview ? "Update Review" : "Submit Review"} onPress={submitReview} />
       <View style={styles.buttonSpacing} />
       <Button

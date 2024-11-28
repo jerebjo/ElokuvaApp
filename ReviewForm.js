@@ -72,6 +72,12 @@ export default function ReviewForm({ selectedMovie, onReviewSubmit, existingRevi
         keyboardType="numeric"
       />
       <Button title={existingReview ? "Update Review" : "Submit Review"} onPress={submitReview} />
+      <View style={styles.buttonSpacing} />
+      <Button
+        title="Back to Home"
+        onPress={onReviewSubmit}
+        color="#ff6347"
+      />
     </View>
   );
 }
@@ -106,5 +112,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  buttonSpacing: {
+    marginTop: 10,
   },
 });

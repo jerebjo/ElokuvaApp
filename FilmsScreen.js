@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert } from 'react-native';
-import { getFirestore, collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot,getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export default function FilmsScreen() {
@@ -8,42 +8,56 @@ export default function FilmsScreen() {
   const auth = getAuth();
   const db = getFirestore();
 
-  // Hakee käyttäjän arvostelut Firestoresta
-  const fetchUserReviews = async () => {
+  const fetchUserReviews = () => {
     const user = auth.currentUser;
     if (user) {
       try {
         const reviewsRef = collection(db, 'reviews');
         const q = query(reviewsRef, where('userId', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const reviewsList = [];
-        querySnapshot.forEach((doc) => {
-          reviewsList.push({ id: doc.id, ...doc.data() });
+
+        // Käytä onSnapshot kuuntelua reaaliaikaisten päivitysten saamiseksi
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const reviewsList = [];
+          querySnapshot.forEach((doc) => {
+            reviewsList.push({ id: doc.id, ...doc.data() });
+          });
+          setReviews(reviewsList);
         });
-        setReviews(reviewsList);
+
+        // Palauta unsubscribe kuuntelun lopettamiseksi
+        return unsubscribe;
       } catch (error) {
         console.error("Error fetching user reviews:", error);
       }
     }
   };
 
-  // Arvostelun poisto
-  const handleDeleteReview = async (reviewId) => {
+  const handleDeleteReview = async (reviewId, movieId) => {
     try {
+      // First, delete the review
       await deleteDoc(doc(db, 'reviews', reviewId));
-      fetchUserReviews(); // Päivitetään arvostelut poiston jälkeen
+  
+      // Now, check if the movie is in favorites and delete it if present
+      const user = auth.currentUser;
+      if (user) {
+        const favoritesRef = collection(db, 'favorites');
+        const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movieId));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (doc) => {
+          await deleteDoc(doc.ref); // Remove movie from favorites collection
+        });
+      }
     } catch (error) {
-      console.error("Error deleting review:", error);
+      console.error("Error deleting review or favorite:", error);
     }
   };
-
   useEffect(() => {
-    fetchUserReviews();
+    const unsubscribe = fetchUserReviews(); // Aloita kuuntelu
+    return () => unsubscribe && unsubscribe(); // Lopeta kuuntelu unmountissa
   }, []);
 
   return (
     <View style={styles.container}>
-      {/* Otsikko lisätty */}
       <Text style={styles.title}>Your Films</Text>
 
       {reviews.length > 0 ? (
@@ -64,20 +78,20 @@ export default function FilmsScreen() {
                 <Text style={styles.reviewText}>{item.review}</Text>
 
                 <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => 
-                    Alert.alert(
-                      "Delete Review",
-                      "Are you sure you want to delete this review?",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Delete", onPress: () => handleDeleteReview(item.id) }
-                      ]
-                    )
-                  }
-                >
-                  <Text style={styles.buttonText}>Delete</Text>
-                </TouchableOpacity>
+  style={styles.deleteButton}
+  onPress={() =>
+    Alert.alert(
+      "Delete Review",
+      "Are you sure you want to delete this review?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", onPress: () => handleDeleteReview(item.id, item.movieId) }
+      ]
+    )
+  }
+>
+  <Text style={styles.buttonText}>Delete</Text>
+</TouchableOpacity>
               </View>
             </View>
           )}
@@ -95,7 +109,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#333333',
     padding: 10,
   },
-  // Otsikon tyyli
   title: {
     color: '#FFD700',
     fontSize: 20,
@@ -103,7 +116,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   text: {
-    color: '#FFD700',
+    color: '#E0E0E0',
     fontSize: 18,
     textAlign: 'center',
     marginTop: 20,
@@ -120,7 +133,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   movieTitle: {
-    color: '#FFD700', // Gold color for movie title
+    color: '#FFD700',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -140,7 +153,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteButton: {
-    backgroundColor: '#8B0000', // Dark red color for Delete button
+    backgroundColor: '#8B0000',
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 5,

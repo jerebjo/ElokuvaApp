@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity } from 'react-native';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
+import { getFirestore, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export default function FavoritesScreen() {
@@ -8,19 +8,25 @@ export default function FavoritesScreen() {
   const auth = getAuth();
   const db = getFirestore();
 
-  // Hakee suosikit Firestoresta
-  const fetchFavorites = async () => {
+  // Hakee käyttäjän suosikit Firestoresta ja kuuntelee muutoksia reaaliaikaisesti
+  const fetchFavorites = () => {
     const user = auth.currentUser;
     if (user) {
       try {
         const favoritesRef = collection(db, 'favorites');
         const q = query(favoritesRef, where('userId', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const favoritesList = [];
-        querySnapshot.forEach((doc) => {
-          favoritesList.push({ id: doc.id, ...doc.data() });
+
+        // Käytetään onSnapshot-tapahtumakuuntelijaa reaaliaikaisesti
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const favoritesList = [];
+          querySnapshot.forEach((docSnapshot) => {
+            const favoriteData = { id: docSnapshot.id, ...docSnapshot.data() };
+            favoritesList.push(favoriteData);
+          });
+          setFavorites(favoritesList);
         });
-        setFavorites(favoritesList);
+
+        return unsubscribe; // Palautetaan kuuntelija, joka voidaan peruuttaa
       } catch (error) {
         console.error("Error fetching favorites: ", error);
       }
@@ -28,8 +34,20 @@ export default function FavoritesScreen() {
   };
 
   useEffect(() => {
-    fetchFavorites();
+    const unsubscribe = fetchFavorites();
+    return () => unsubscribe && unsubscribe(); // Puhdistetaan kuuntelija
   }, []);
+
+  const renderFavoriteItem = ({ item }) => (
+    <View style={styles.movieContainer}>
+      {item.posterUrl ? (
+        <Image source={{ uri: item.posterUrl }} style={styles.poster} />
+      ) : (
+        <Text style={styles.noPoster}>No poster available</Text>
+      )}
+      <Text style={styles.movieTitle}>{item.movieTitle}</Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -38,16 +56,7 @@ export default function FavoritesScreen() {
         <FlatList
           data={favorites}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.movieContainer}>
-              {item.posterUrl ? (
-                <Image source={{ uri: item.posterUrl }} style={styles.poster} />
-              ) : (
-                <Text style={styles.noPoster}>No poster available</Text>
-              )}
-              <Text style={styles.movieTitle}>{item.movieTitle}</Text>
-            </View>
-          )}
+          renderItem={renderFavoriteItem}
         />
       ) : (
         <Text style={styles.noFavorites}>You have no favorite movies yet!</Text>

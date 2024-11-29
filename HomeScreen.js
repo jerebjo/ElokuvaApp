@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, FlatList, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import MovieSearchScreen from './MovieSearchScreen';
 import ReviewForm from './ReviewForm';
-import { getFirestore, collection, query, where, getDocs, deleteDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { handleDeleteReview } from './fireBaseUtils'; // Tuodaan fireBaseUtils-tiedostosta
 
 export default function HomeScreen() {
   const [selectedMovie, setSelectedMovie] = useState(null);
@@ -20,36 +21,44 @@ export default function HomeScreen() {
   const handleReviewSubmit = () => {
     setSelectedMovie(null);
     setEditingReview(null);
-    fetchUserReviews();
   };
 
-  const fetchUserReviews = async () => {
+  const fetchUserReviews = () => {
     const user = auth.currentUser;
     if (user) {
       try {
         const reviewsRef = collection(db, 'reviews');
         const q = query(reviewsRef, where('userId', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const reviewsList = [];
-        querySnapshot.forEach((doc) => {
-          reviewsList.push({ id: doc.id, ...doc.data() });
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const reviewsList = [];
+          querySnapshot.forEach((doc) => {
+            reviewsList.push({ id: doc.id, ...doc.data() });
+          });
+          setReviews(reviewsList);
         });
-        setReviews(reviewsList);
+
+        return unsubscribe; // Palauta kuuntelun lopettamiseksi
       } catch (error) {
         console.error("Error fetching user reviews: ", error);
       }
     }
   };
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = () => {
     const user = auth.currentUser;
     if (user) {
       try {
         const favoritesRef = collection(db, 'favorites');
         const q = query(favoritesRef, where('userId', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const favoritesList = querySnapshot.docs.map((doc) => doc.data().movieId);
-        setFavorites(favoritesList);
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const favoritesList = [];
+          querySnapshot.forEach((doc) => {
+            favoritesList.push(doc.data().movieId);
+          });
+          setFavorites(favoritesList);
+        });
+
+        return unsubscribe; // Palauta kuuntelun lopettamiseksi
       } catch (error) {
         console.error("Error fetching favorites:", error);
       }
@@ -61,7 +70,6 @@ export default function HomeScreen() {
     if (user) {
       try {
         if (favorites.includes(movie.imdbID)) {
-          // Poista suosikki
           const favoritesRef = collection(db, 'favorites');
           const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movie.imdbID));
           const querySnapshot = await getDocs(q);
@@ -69,7 +77,6 @@ export default function HomeScreen() {
             await deleteDoc(doc.ref);
           });
         } else {
-          // Lisää suosikki
           await addDoc(collection(db, 'favorites'), {
             userId: user.uid,
             movieId: movie.imdbID,
@@ -78,30 +85,39 @@ export default function HomeScreen() {
             timestamp: serverTimestamp(),
           });
         }
-        fetchFavorites();
       } catch (error) {
         console.error("Error toggling favorite:", error);
       }
     }
   };
 
-  const handleDeleteReview = async (reviewId) => {
+  const handleDeleteReviewClick = async (reviewId, movieId) => {
     try {
-      await deleteDoc(doc(db, 'reviews', reviewId));
-      fetchUserReviews();
+      // First, delete the review
+      await handleDeleteReview(reviewId); // Calls the existing function to delete the review
+  
+      // Check if the movie is in favorites and delete it if present
+      const user = auth.currentUser;
+      if (user) {
+        const favoritesRef = collection(db, 'favorites');
+        const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movieId));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (doc) => {
+          await deleteDoc(doc.ref); // Delete the movie from the favorites collection
+        });
+      }
     } catch (error) {
-      console.error("Error deleting review:", error);
+      console.error("Error deleting review or favorite:", error);
     }
   };
 
-  const handleEditReview = (review) => {
-    setEditingReview(review);
-    setSelectedMovie({ imdbID: review.movieId, Title: review.movieTitle, Poster: review.posterUrl });
-  };
-
   useEffect(() => {
-    fetchUserReviews();
-    fetchFavorites();
+    const unsubscribeReviews = fetchUserReviews();
+    const unsubscribeFavorites = fetchFavorites();
+    return () => {
+      unsubscribeReviews && unsubscribeReviews();
+      unsubscribeFavorites && unsubscribeFavorites();
+    };
   }, []);
 
   return (
@@ -153,20 +169,20 @@ export default function HomeScreen() {
                         <Text style={styles.buttonText}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() =>
-                          Alert.alert(
-                            "Delete Review",
-                            "Are you sure you want to delete this review?",
-                            [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Delete", onPress: () => handleDeleteReview(item.id) }
-                            ]
-                          )
-                        }
-                      >
-                        <Text style={styles.buttonText}>Delete</Text>
-                      </TouchableOpacity>
+  style={styles.deleteButton}
+  onPress={() =>
+    Alert.alert(
+      "Delete Review",
+      "Are you sure you want to delete this review?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", onPress: () => handleDeleteReviewClick(item.id, item.movieId) }
+      ]
+    )
+  }
+>
+  <Text style={styles.buttonText}>Delete</Text>
+</TouchableOpacity>
                     </View>
 
                     {/* Favorite Toggle */}
@@ -208,14 +224,12 @@ const styles = StyleSheet.create({
   reviewsSection: {
     marginTop: 20,
   },
-
   movieSearchContainer: {
     backgroundColor: '#2a2a2a', 
     padding: 10,
     borderRadius: 8,
     marginBottom: 20,
   },
-
   reviewContainer: {
     flexDirection: 'row',
     marginBottom: 15,
@@ -225,69 +239,46 @@ const styles = StyleSheet.create({
   },
   reviewDetails: {
     flex: 1,
-    marginLeft: 10,
-  },
-  movieTitle: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  reviewText: {
-    color: '#E0E0E0',
-    fontSize: 14,
-    marginTop: 5,
-  },
-  poster: {
-    width: 80,
-    height: 120,
-    resizeMode: 'contain',
-  },
-  noPoster: {
-    color: '#ffffff',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    paddingLeft: 10,
   },
   buttonContainer: {
     flexDirection: 'row',
     marginTop: 10,
   },
-  editButton: {
-    backgroundColor: '#FFD700',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    marginRight: 10,
-  },
   deleteButton: {
-    backgroundColor: '#8B0000',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    backgroundColor: 'red',
+    padding: 10,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  editButton: {
+    backgroundColor: 'orange',
+    padding: 10,
     borderRadius: 5,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  },
+  poster: {
+    width: 100,
+    height: 150,
+    borderRadius: 8,
   },
   favorite: {
     fontSize: 24,
-    color: '#777',
-    marginTop: 10,
+    color: 'gray',
   },
   favoriteActive: {
     fontSize: 24,
-    color: '#FFD700',
-    marginTop: 10,
-  },
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 50,
+    color: 'red',
   },
   emptyStateText: {
-    fontSize: 18,
-    color: '#aaa',
+    fontSize: 16,
+    color: 'white',
     textAlign: 'center',
+  },
+  noPoster: {
+    fontSize: 16,
+    color: 'gray',
   },
 });

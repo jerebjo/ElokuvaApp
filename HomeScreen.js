@@ -4,79 +4,93 @@ import MovieSearchScreen from './MovieSearchScreen';
 import ReviewForm from './ReviewForm';
 import { getFirestore, collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { handleDeleteReview } from './fireBaseUtils'; // Tuodaan fireBaseUtils-tiedostosta
+import { handleDeleteReview } from './fireBaseUtils'; // Tuodaan apufunktio arvostelun poistamiseen
 
 export default function HomeScreen() {
-  const [selectedMovie, setSelectedMovie] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const [favorites, setFavorites] = useState([]);
-  const [editingReview, setEditingReview] = useState(null);
-  const auth = getAuth();
-  const db = getFirestore();
+  // Tilamuuttujat komponentin tilan hallintaan
+  const [selectedMovie, setSelectedMovie] = useState(null); // Valittu elokuva arvostelun kirjoittamista varten
+  const [reviews, setReviews] = useState([]); // Käyttäjän arvostelut
+  const [favorites, setFavorites] = useState([]); // Käyttäjän suosikit
+  const [editingReview, setEditingReview] = useState(null); // Muokattavana oleva arvostelu
+  const auth = getAuth(); // Firebase Authentication -instanssi
+  const db = getFirestore(); // Firebase Firestore -instanssi
 
+  // Asetetaan valittu elokuva
   const handleMovieSelect = (movie) => {
     setSelectedMovie(movie);
   };
 
+  // Palautetaan tila arvostelun lähettämisen jälkeen
   const handleReviewSubmit = () => {
     setSelectedMovie(null);
     setEditingReview(null);
   };
 
+  // Haetaan kirjautuneen käyttäjän arvostelut Firestoresta
   const fetchUserReviews = () => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const reviewsRef = collection(db, 'reviews');
-        const q = query(reviewsRef, where('userId', '==', user.uid));
+        const reviewsRef = collection(db, 'reviews'); // Viitataan arvostelukokoelmaan
+        const q = query(reviewsRef, where('userId', '==', user.uid)); // Suodatetaan käyttäjän arvostelut
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const reviewsList = [];
           querySnapshot.forEach((doc) => {
-            reviewsList.push({ id: doc.id, ...doc.data() });
+            reviewsList.push({ id: doc.id, ...doc.data() }); // Tallennetaan arvostelut
           });
-          setReviews(reviewsList);
+          setReviews(reviewsList); // Päivitetään tila
         });
 
-        return unsubscribe; // Palauta kuuntelun lopettamiseksi
+        return unsubscribe; // Palautetaan lopetusfunktio
       } catch (error) {
         console.error("Error fetching user reviews: ", error);
       }
     }
   };
 
+  const handleEditReview = (review) => {
+    setEditingReview(review); // Asetetaan muokattava arvostelu, joka on valittu
+    setSelectedMovie({ imdbID: review.movieId, Title: review.movieTitle, Poster: review.posterUrl }); // Asetetaan muokattava elokuva valituksi arvostelun perusteella
+  };
+  
+
+  // Haetaan käyttäjän suosikit Firestoresta
   const fetchFavorites = () => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const favoritesRef = collection(db, 'favorites');
-        const q = query(favoritesRef, where('userId', '==', user.uid));
+        const favoritesRef = collection(db, 'favorites'); // Viitataan suosikkikokoelmaan
+        const q = query(favoritesRef, where('userId', '==', user.uid)); // Suodatetaan käyttäjän suosikit
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const favoritesList = [];
           querySnapshot.forEach((doc) => {
-            favoritesList.push(doc.data().movieId);
+            favoritesList.push(doc.data().movieId); // Lisätään elokuvan ID suosikkilistaan
           });
-          setFavorites(favoritesList);
+          setFavorites(favoritesList); // Päivitetään tila
         });
 
-        return unsubscribe; // Palauta kuuntelun lopettamiseksi
+        return unsubscribe; // Palautetaan lopetusfunktio
       } catch (error) {
         console.error("Error fetching favorites:", error);
       }
     }
   };
 
+  // Lisää tai poista elokuva suosikeista
   const handleToggleFavorite = async (movie) => {
     const user = auth.currentUser;
     if (user) {
       try {
         if (favorites.includes(movie.imdbID)) {
+          // Poistetaan suosikeista
           const favoritesRef = collection(db, 'favorites');
           const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movie.imdbID));
           const querySnapshot = await getDocs(q);
           querySnapshot.forEach(async (doc) => {
-            await deleteDoc(doc.ref);
+            await deleteDoc(doc.ref); // Poistetaan dokumentti
           });
         } else {
+          // Lisätään suosikkeihin
           await addDoc(collection(db, 'favorites'), {
             userId: user.uid,
             movieId: movie.imdbID,
@@ -91,19 +105,17 @@ export default function HomeScreen() {
     }
   };
 
+  // Poistetaan arvostelu ja siihen liittyvä suosikki, jos olemassa
   const handleDeleteReviewClick = async (reviewId, movieId) => {
     try {
-      // First, delete the review
-      await handleDeleteReview(reviewId); // Calls the existing function to delete the review
-  
-      // Check if the movie is in favorites and delete it if present
+      await handleDeleteReview(reviewId); // Poistetaan arvostelu Firestoresta
       const user = auth.currentUser;
       if (user) {
         const favoritesRef = collection(db, 'favorites');
         const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movieId));
         const querySnapshot = await getDocs(q);
         querySnapshot.forEach(async (doc) => {
-          await deleteDoc(doc.ref); // Delete the movie from the favorites collection
+          await deleteDoc(doc.ref); // Poistetaan mahdollinen suosikkimerkintä
         });
       }
     } catch (error) {
@@ -111,12 +123,13 @@ export default function HomeScreen() {
     }
   };
 
+  // Käynnistetään arvostelujen ja suosikkien haku komponentin latautuessa
   useEffect(() => {
     const unsubscribeReviews = fetchUserReviews();
     const unsubscribeFavorites = fetchFavorites();
     return () => {
-      unsubscribeReviews && unsubscribeReviews();
-      unsubscribeFavorites && unsubscribeFavorites();
+      unsubscribeReviews && unsubscribeReviews(); // Suljetaan arvostelujen tilauksen kuuntelu
+      unsubscribeFavorites && unsubscribeFavorites(); // Suljetaan suosikkien tilauksen kuuntelu
     };
   }, []);
 
@@ -124,6 +137,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.container}>
         {selectedMovie ? (
+          // Näytetään arvostelulomake, jos elokuva valittu
           <ReviewForm
             selectedMovie={selectedMovie}
             onReviewSubmit={handleReviewSubmit}
@@ -131,19 +145,21 @@ export default function HomeScreen() {
           />
         ) : (
           <>
-            {/* Lisää hakuelementin tausta */}
+            {/* Elokuvahakukomponentti */}
             <View style={styles.movieSearchContainer}>
               <MovieSearchScreen onSelectMovie={handleMovieSelect} />
             </View>
 
+            {/* Tyhjän tilan teksti, jos arvosteluja ei ole */}
             {reviews.length === 0 && (
               <View style={styles.emptyStateContainer}>
-                <Text style={styles.emptyStateText}>Search for a movie to get started</Text>
+                <Text style={styles.emptyStateText}>Search for a movie to get started!</Text>
               </View>
             )}
           </>
         )}
 
+        {/* Käyttäjän arvostelut */}
         {reviews.length > 0 && !selectedMovie && (
           <View style={styles.reviewsSection}>
             <Text style={styles.reviewsTitle}>Your Reviews:</Text>
@@ -152,53 +168,53 @@ export default function HomeScreen() {
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <View style={styles.reviewContainer}>
+                  {/* Näytetään elokuvan juliste tai "ei julistetta" -teksti */}
                   {item.posterUrl && item.posterUrl !== "N/A" ? (
                     <Image source={{ uri: item.posterUrl }} style={styles.poster} />
                   ) : (
                     <Text style={styles.noPoster}>No poster available</Text>
                   )}
                   <View style={styles.reviewDetails}>
+                    {/* Elokuvan nimi ja arvostelutiedot */}
                     <Text style={styles.movieTitle}>
                       {item.movieTitle} - Rating: {item.rating} / 10
                     </Text>
                     <Text style={styles.reviewText}>{item.review}</Text>
 
-                    {/* Edit and Delete Buttons */}
+                    {/* Painikkeet muokkaamiseen, poistamiseen ja suosikiksi lisäämiseen */}
                     <View style={styles.buttonContainer}>
                       <TouchableOpacity style={styles.editButton} onPress={() => handleEditReview(item)}>
                         <Text style={styles.buttonText}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-  style={styles.deleteButton}
-  onPress={() =>
-    Alert.alert(
-      "Delete Review",
-      "Are you sure you want to delete this review?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", onPress: () => handleDeleteReviewClick(item.id, item.movieId) }
-      ]
-    )
-  }
->
-  <Text style={styles.buttonText}>Delete</Text>
-</TouchableOpacity>
+                        style={styles.deleteButton}
+                        onPress={() =>
+                          Alert.alert(
+                            "Delete Review",
+                            "Are you sure you want to delete this review?",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Delete", onPress: () => handleDeleteReviewClick(item.id, item.movieId) }
+                            ]
+                          )
+                        }
+                      >
+                        <Text style={styles.buttonText}>Delete</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleToggleFavorite({
+                            imdbID: item.movieId,
+                            Title: item.movieTitle,
+                            Poster: item.posterUrl,
+                          })
+                        }
+                      >
+                        <Text style={favorites.includes(item.movieId) ? styles.favoriteActive : styles.favorite}>
+                          {favorites.includes(item.movieId) ? '❤️' : '🤍'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-
-                    {/* Favorite Toggle */}
-                    <TouchableOpacity
-                      onPress={() =>
-                        handleToggleFavorite({
-                          imdbID: item.movieId,
-                          Title: item.movieTitle,
-                          Poster: item.posterUrl,
-                        })
-                      }
-                    >
-                      <Text style={favorites.includes(item.movieId) ? styles.favoriteActive : styles.favorite}>
-                        {favorites.includes(item.movieId) ? '❤️' : '🖤'}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -210,7 +226,9 @@ export default function HomeScreen() {
   );
 }
 
+// Tyylit komponentille
 const styles = StyleSheet.create({
+  // Tyylit määritelty kullekin näkymän osalle
   container: {
     flex: 1,
     backgroundColor: '#333333',
@@ -218,17 +236,18 @@ const styles = StyleSheet.create({
   },
   reviewsTitle: {
     fontSize: 20,
-    color: '#fff',
+    color: '#FFD700',  // Keltainen väri otsikoille
     marginBottom: 10,
   },
   reviewsSection: {
     marginTop: 20,
   },
   movieSearchContainer: {
-    backgroundColor: '#2a2a2a', 
+    backgroundColor: '#2a2a2a',
     padding: 10,
     borderRadius: 8,
     marginBottom: 20,
+    marginTop: 30,  // Lisää tämä, jotta elokuvahaku siirtyy alemmaksi
   },
   reviewContainer: {
     flexDirection: 'row',
@@ -244,15 +263,16 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     marginTop: 10,
+    alignItems: 'center',
   },
   deleteButton: {
-    backgroundColor: 'red',
+    backgroundColor: '#8B0000',
     padding: 10,
     borderRadius: 5,
     marginLeft: 10,
   },
   editButton: {
-    backgroundColor: 'orange',
+    backgroundColor: '#FFD700',
     padding: 10,
     borderRadius: 5,
   },
@@ -267,10 +287,12 @@ const styles = StyleSheet.create({
   favorite: {
     fontSize: 24,
     color: 'gray',
+    marginLeft: 10,
   },
   favoriteActive: {
     fontSize: 24,
     color: 'red',
+    marginLeft: 10,
   },
   emptyStateText: {
     fontSize: 16,
@@ -280,5 +302,13 @@ const styles = StyleSheet.create({
   noPoster: {
     fontSize: 16,
     color: 'gray',
+  },
+  movieTitle: {
+    fontSize: 16,
+    color: '#FFD700',
+  },
+  reviewText: {
+    fontSize: 14,
+    color: '#fff',
   },
 });

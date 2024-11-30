@@ -1,30 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert } from 'react-native';
-import { getFirestore, collection, query, where, onSnapshot,getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export default function FilmsScreen() {
-  const [reviews, setReviews] = useState([]);
-  const auth = getAuth();
-  const db = getFirestore();
+  const [reviews, setReviews] = useState([]); // Tallennetaan käyttäjän arvostelut
+  const auth = getAuth(); // Firebase Authentication -instanssi
+  const db = getFirestore(); // Firestore-tietokanta
 
+  // Hakee käyttäjän arvostelut ja asettaa reaaliaikaisen kuuntelun
   const fetchUserReviews = () => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const reviewsRef = collection(db, 'reviews');
-        const q = query(reviewsRef, where('userId', '==', user.uid));
+        const reviewsRef = collection(db, 'reviews'); // Viittaus arvostelukokoelmaan
+        const q = query(reviewsRef, where('userId', '==', user.uid)); // Hakee kirjautuneen käyttäjän arvostelut
 
-        // Käytä onSnapshot kuuntelua reaaliaikaisten päivitysten saamiseksi
+        // Käytä onSnapshot reaaliaikaisten päivitysten saamiseksi
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const reviewsList = [];
           querySnapshot.forEach((doc) => {
-            reviewsList.push({ id: doc.id, ...doc.data() });
+            reviewsList.push({ id: doc.id, ...doc.data() }); // Tallenna jokainen dokumentti
           });
-          setReviews(reviewsList);
+          setReviews(reviewsList); // Päivitä tila
         });
 
-        // Palauta unsubscribe kuuntelun lopettamiseksi
+        // Palauta unsubscribe kuuntelun lopettamista varten
         return unsubscribe;
       } catch (error) {
         console.error("Error fetching user reviews:", error);
@@ -32,27 +33,31 @@ export default function FilmsScreen() {
     }
   };
 
+  // Käsittelee arvostelun poistamisen
   const handleDeleteReview = async (reviewId, movieId) => {
     try {
-      // First, delete the review
-      await deleteDoc(doc(db, 'reviews', reviewId));
-  
-      // Now, check if the movie is in favorites and delete it if present
+      await deleteDoc(doc(db, 'reviews', reviewId)); // Poista arvostelu Firestoresta
+
+      // Tarkista, onko elokuva suosikeissa ja poista se, jos se löytyy
       const user = auth.currentUser;
       if (user) {
         const favoritesRef = collection(db, 'favorites');
         const q = query(favoritesRef, where('userId', '==', user.uid), where('movieId', '==', movieId));
         const querySnapshot = await getDocs(q);
+
+        // Poista kaikki suosikeista löytyvät viittaukset
         querySnapshot.forEach(async (doc) => {
-          await deleteDoc(doc.ref); // Remove movie from favorites collection
+          await deleteDoc(doc.ref);
         });
       }
     } catch (error) {
-      console.error("Error deleting review or favorite:", error);
+      console.error("Error deleting review or favorite:", error); // Näytä virhe konsolissa
     }
   };
+
+  // Komponentin mount/unmount
   useEffect(() => {
-    const unsubscribe = fetchUserReviews(); // Aloita kuuntelu
+    const unsubscribe = fetchUserReviews(); // Aloita reaaliaikainen kuuntelu
     return () => unsubscribe && unsubscribe(); // Lopeta kuuntelu unmountissa
   }, []);
 
@@ -61,12 +66,14 @@ export default function FilmsScreen() {
       <Text style={styles.title}>Your Films</Text>
 
       {reviews.length > 0 ? (
+        // Näytetään lista arvosteluista
         <FlatList
           data={reviews}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <View style={styles.reviewContainer}>
               {item.posterUrl && item.posterUrl !== "N/A" ? (
+                // Elokuvan juliste
                 <Image source={{ uri: item.posterUrl }} style={styles.poster} />
               ) : (
                 <Text style={styles.noPoster}>No poster available</Text>
@@ -77,32 +84,34 @@ export default function FilmsScreen() {
                 </Text>
                 <Text style={styles.reviewText}>{item.review}</Text>
 
+                {/* Poistopainike */}
                 <TouchableOpacity
-  style={styles.deleteButton}
-  onPress={() =>
-    Alert.alert(
-      "Delete Review",
-      "Are you sure you want to delete this review?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", onPress: () => handleDeleteReview(item.id, item.movieId) }
-      ]
-    )
-  }
->
-  <Text style={styles.buttonText}>Delete</Text>
-</TouchableOpacity>
+                  style={styles.deleteButton}
+                  onPress={() =>
+                    Alert.alert(
+                      "Delete Review",
+                      "Are you sure you want to delete this review?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", onPress: () => handleDeleteReview(item.id, item.movieId) }
+                      ]
+                    )
+                  }
+                >
+                  <Text style={styles.buttonText}>Delete</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
         />
       ) : (
-        <Text style={styles.text}>No reviewed films yet</Text>
+        <Text style={styles.text}>No reviewed films yet</Text> // Tyhjän tilan viesti
       )}
     </View>
   );
 }
 
+// Tyylit
 const styles = StyleSheet.create({
   container: {
     flex: 1,

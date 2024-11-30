@@ -4,48 +4,51 @@ import { getFirestore, collection, query, where, onSnapshot, deleteDoc } from 'f
 import { getAuth } from 'firebase/auth';
 
 export default function FavoritesScreen() {
-  const [favorites, setFavorites] = useState([]);
-  const auth = getAuth();
-  const db = getFirestore();
+  const [favorites, setFavorites] = useState([]); // Tallentaa käyttäjän suosikit
+  const auth = getAuth(); // Firebase Authentication -instanssi
+  const db = getFirestore(); // Firestore-tietokanta
 
-  // Hakee käyttäjän suosikit Firestoresta ja kuuntelee muutoksia reaaliaikaisesti
+  // Hakee käyttäjän suosikit Firestoresta ja asettaa reaaliaikaisen kuuntelun
   const fetchFavorites = () => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const favoritesRef = collection(db, 'favorites');
-        const q = query(favoritesRef, where('userId', '==', user.uid));
+        const favoritesRef = collection(db, 'favorites'); // Viittaus 'favorites'-kokoelmaan
+        const q = query(favoritesRef, where('userId', '==', user.uid)); // Kysely käyttäjän suosikeille
 
-        // Käytetään onSnapshot-tapahtumakuuntelijaa reaaliaikaisesti
+        // Käytetään onSnapshot kuunteluun reaaliaikaisia muutoksia varten
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const favoritesList = [];
           querySnapshot.forEach((docSnapshot) => {
-            const favoriteData = { id: docSnapshot.id, ...docSnapshot.data() };
+            const favoriteData = { id: docSnapshot.id, ...docSnapshot.data() }; // Tallenna dokumentti
             favoritesList.push(favoriteData);
           });
-          setFavorites(favoritesList);
+          setFavorites(favoritesList); // Päivitä tila
         });
 
         return unsubscribe; // Palautetaan kuuntelija, joka voidaan peruuttaa
       } catch (error) {
-        console.error("Error fetching favorites: ", error);
+        console.error("Error fetching favorites: ", error); // Virheen lokitus
       }
     }
   };
 
+  // Komponentin mount/unmount
   useEffect(() => {
-    const unsubscribe = fetchFavorites();
-    return () => unsubscribe && unsubscribe(); // Puhdistetaan kuuntelija
+    const unsubscribe = fetchFavorites(); // Aloita kuuntelu
+    return () => unsubscribe && unsubscribe(); // Lopeta kuuntelu unmountissa
   }, []);
 
+  // Suosikkien yksittäisen rivin renderöinti
   const renderFavoriteItem = ({ item }) => (
     <View style={styles.movieContainer}>
       {item.posterUrl ? (
+        // Näytetään juliste, jos saatavilla
         <Image source={{ uri: item.posterUrl }} style={styles.poster} />
       ) : (
-        <Text style={styles.noPoster}>No poster available</Text>
+        <Text style={styles.noPoster}>No poster available</Text> // Ilmoitus julisteen puuttuessa
       )}
-      <Text style={styles.movieTitle}>{item.movieTitle}</Text>
+      <Text style={styles.movieTitle}>{item.movieTitle}</Text> {/* Elokuvan nimi */}
     </View>
   );
 
@@ -53,18 +56,20 @@ export default function FavoritesScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Your Favorite Movies</Text>
       {favorites.length > 0 ? (
+        // Näytetään suosikit FlatList-komponentilla
         <FlatList
           data={favorites}
-          keyExtractor={(item) => item.id}
-          renderItem={renderFavoriteItem}
+          keyExtractor={(item) => item.id} // Avain listan riveille
+          renderItem={renderFavoriteItem} // Renders elokuvat
         />
       ) : (
-        <Text style={styles.noFavorites}>You have no favorite movies yet!</Text>
+        <Text style={styles.noFavorites}>You have no favorite movies yet!</Text> // Viesti, jos ei suosikkeja
       )}
     </View>
   );
 }
 
+// Tyylit
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -4,79 +4,113 @@ import { getFirestore, collection, addDoc, updateDoc, doc, serverTimestamp } fro
 import { getAuth } from 'firebase/auth';
 
 export default function ReviewForm({ selectedMovie, onReviewSubmit, existingReview }) {
-  const [reviewText, setReviewText] = useState('');
-  const [rating, setRating] = useState('');
-  const db = getFirestore();
-  const auth = getAuth();
+  const [reviewText, setReviewText] = useState(''); // Arvostelutekstin tila
+  const [rating, setRating] = useState(''); // Arvosanan tila
+  const [ratingError, setRatingError] = useState(''); // Virheviesti arvosanalle
+  const db = getFirestore(); // Firebase Firestore-viite
+  const auth = getAuth(); // Firebase Auth-viite
 
   useEffect(() => {
-    if (existingReview) {
-      setReviewText(existingReview.review);
-      setRating(existingReview.rating.toString());
+    if (existingReview) { // Jos muokataan olemassa olevaa arvostelua
+      setReviewText(existingReview.review); // Esitäytä arvosteluteksti
+      setRating(existingReview.rating.toString()); // Esitäytä arvosana (merkkijonona)
     }
-  }, [existingReview]);
+  }, [existingReview]); // Käynnistä esitäyttö aina kun `existingReview` muuttuu
 
   const submitReview = async () => {
-    const user = auth.currentUser;
+    const user = auth.currentUser; // Tällä hetkellä kirjautunut käyttäjä
     if (user && selectedMovie) {
+      // Convert rating to an integer and check if it's valid
+      const numericRating = parseInt(rating);
+      if (numericRating < 1 || numericRating > 10) {
+        setRatingError("Rating must be between 1 and 10."); // Show error if rating is out of bounds
+        return;
+      }
+
       try {
         if (existingReview) {
-          // Update existing review
+          // Päivitetään olemassa oleva arvostelu
           const reviewDoc = doc(db, 'reviews', existingReview.id);
           await updateDoc(reviewDoc, {
             review: reviewText,
-            rating: parseInt(rating),
-            timestamp: serverTimestamp(),
+            rating: numericRating, // Arvosana tallennetaan numerona
+            timestamp: serverTimestamp(), // Päivitetään aikaleima
           });
         } else {
-          // Add new review
+          // Luodaan uusi arvostelu
           await addDoc(collection(db, 'reviews'), {
-            userId: user.uid,
-            movieId: selectedMovie.imdbID,
-            movieTitle: selectedMovie.Title,
-            review: reviewText,
-            rating: parseInt(rating),
-            posterUrl: selectedMovie.Poster !== "N/A" ? selectedMovie.Poster : null,
-            timestamp: serverTimestamp(),
+            userId: user.uid, // Käyttäjän ID
+            movieId: selectedMovie.imdbID, // Elokuvan IMDb-ID
+            movieTitle: selectedMovie.Title, // Elokuvan nimi
+            review: reviewText, // Arvosteluteksti
+            rating: numericRating, // Arvosana
+            posterUrl: selectedMovie.Poster !== "N/A" ? selectedMovie.Poster : null, // Julisteen URL (jos saatavilla)
+            timestamp: serverTimestamp(), // Luontiaikaleima
           });
         }
-        setReviewText('');
+        setReviewText(''); // Tyhjennetään lomake
         setRating('');
-        onReviewSubmit();
+        setRatingError(''); // Tyhjennetään virheviesti
+        onReviewSubmit(); // Paluu kotinäkymään
       } catch (error) {
-        console.error("Error submitting review:", error);
+        console.error("Error submitting review:", error); // Virheen käsittely
       }
+    }
+  };
+
+  const handleRatingChange = (text) => {
+    // Update the rating state and clear any error if input is valid
+    setRating(text);
+    if (text < 1 || text > 10) {
+      setRatingError("Rating must be between 1 and 10.");
+    } else {
+      setRatingError('');
     }
   };
 
   return (
     <View style={styles.container}>
+      {/* Elokuvan otsikko */}
       <Text style={styles.movieTitle}>Review: {selectedMovie.Title}</Text>
+      
+      {/* Elokuvan juliste */}
       {selectedMovie.Poster && selectedMovie.Poster !== "N/A" ? (
         <Image source={{ uri: selectedMovie.Poster }} style={styles.poster} />
       ) : (
         <Text style={styles.noPoster}>No poster available</Text>
       )}
+      
+      {/* Arvostelutekstin syöttö */}
       <TextInput
         style={styles.input}
         placeholder="Write your review"
         value={reviewText}
         onChangeText={setReviewText}
-        multiline
+        multiline // Mahdollistaa usean rivin tekstin
       />
+      
+      {/* Arvosanan syöttö */}
       <TextInput
         style={styles.input}
         placeholder="Rating (1-10)"
         value={rating}
-        onChangeText={setRating}
-        keyboardType="numeric"
+        onChangeText={handleRatingChange}
+        keyboardType="numeric" // Näyttää vain numeronäppäimistön
       /> 
+      
+      {/* Arvosana virheviesti */}
+      {ratingError ? <Text style={styles.errorText}>{ratingError}</Text> : null}
+
+      {/* Tallennuspainike */}
       <Button title={existingReview ? "Update Review" : "Submit Review"} onPress={submitReview} />
+      
       <View style={styles.buttonSpacing} />
+      
+      {/* Paluupainike */}
       <Button
         title="Back to Home"
-        onPress={onReviewSubmit}
-        color="#ff6347"
+        onPress={onReviewSubmit} // Paluu ilman tallennusta
+        color="#ff6347" 
       />
     </View>
   );
@@ -85,12 +119,12 @@ export default function ReviewForm({ selectedMovie, onReviewSubmit, existingRevi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#333333',
+    backgroundColor: '#333333', 
     padding: 20,
   },
   movieTitle: {
     fontSize: 18,
-    color: '#ffffff',
+    color: '#ffffff', 
     marginBottom: 10,
   },
   input: {
@@ -99,21 +133,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingLeft: 10,
-    backgroundColor: 'white',
+    backgroundColor: 'white', 
     marginBottom: 10,
   },
   poster: {
     width: 150,
     height: 225,
-    resizeMode: 'contain',
+    resizeMode: 'contain', 
     marginBottom: 10,
   },
   noPoster: {
     color: '#ffffff',
-    fontStyle: 'italic',
+    fontStyle: 'italic', 
     textAlign: 'center',
   },
   buttonSpacing: {
-    marginTop: 10,
+    marginTop: 10, 
+  },
+  errorText: {
+    color: 'red', 
+    marginBottom: 10,
   },
 });

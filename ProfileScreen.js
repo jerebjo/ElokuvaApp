@@ -6,59 +6,60 @@ import { useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function ProfileScreen() {
-  const [userData, setUserData] = useState(null);
-  const [editingName, setEditingName] = useState(false);
-  const [newDisplayName, setNewDisplayName] = useState('');
-  const auth = getAuth();
-  const db = getFirestore();
-  const navigation = useNavigation();
+  const [userData, setUserData] = useState(null); // Käyttäjän tiedot (näyttönimi ja sähköposti)
+  const [editingName, setEditingName] = useState(false); // Onko näyttönimen muokkaustila päällä
+  const [newDisplayName, setNewDisplayName] = useState(''); // Uusi näyttönimi
+  const auth = getAuth(); // Firebase Authentication -instanssi
+  const db = getFirestore(); // Firestore-instanssi
+  const navigation = useNavigation(); // Navigointiobjekti
 
-  // Fetch user data from Firebase Auth
+  // Hakee käyttäjän tiedot Firebase Authenticationista
   const fetchUserData = () => {
     const user = auth.currentUser;
     if (user) {
       setUserData({
-        displayName: user.displayName || 'Anonymous',
-        email: user.email,
+        displayName: user.displayName || 'Anonymous', // Näyttönimi (tai oletus)
+        email: user.email, // Sähköposti
       });
-      setNewDisplayName(user.displayName || ''); // Set initial value for name input
+      setNewDisplayName(user.displayName || ''); // Asettaa syötekenttään nykyisen nimen
     }
   };
 
+  // Suoritetaan komponentin alussa
   useEffect(() => {
     fetchUserData();
   }, []);
 
-  // Handle sign-out
+  // Uloskirjautuminen
   const handleSignOut = () => {
     signOut(auth).catch((error) => console.error("Error signing out: ", error));
   };
 
-  // Handle updating profile data
+  // Näyttönimen päivittäminen Firebaseen
   const handleUpdateProfile = async () => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) return; // Lopeta, jos käyttäjää ei ole
 
     try {
-      // Update Firebase Auth user profile
+      // Päivitetään käyttäjän tiedot Firebase Authenticationiin
       await updateProfile(user, {
         displayName: newDisplayName || user.displayName,
       });
 
-      // Also update Firestore with the new info
+      // Päivitetään Firestore-tietokantaan
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         displayName: newDisplayName || user.displayName,
-      }, { merge: true });
+      }, { merge: true }); // Sulautetaan olemassa olevaan dataan
 
-      // After update, reset editing state
+      // Päivityksen jälkeen lopetetaan muokkaustila
       setEditingName(false);
-      fetchUserData(); // Refresh user data
+      fetchUserData(); // Päivitetään käyttöliittymän tiedot
 
-      Alert.alert('Profile updated successfully');
+      Alert.alert('Profile updated successfully'); // Vahvistusviesti
     } catch (error) {
       console.error("Error updating profile:", error);
-      Alert.alert('Error updating profile');
+      Alert.alert('Error updating profile'); // Virheilmoitus
     }
   };
 
@@ -66,14 +67,14 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       {userData && (
         <View style={styles.userInfo}>
-          {/* Display Name */}
+          {/* Näyttönimi ja muokkaus */}
           <View style={styles.displayNameContainer}>
             {editingName ? (
               <TextInput
                 style={styles.input}
                 value={newDisplayName}
                 onChangeText={setNewDisplayName}
-                autoFocus
+                autoFocus // Avaa näppäimistön automaattisesti
               />
             ) : (
               <Text style={styles.displayName}>{userData.displayName}</Text>
@@ -83,12 +84,12 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Email */}
+          {/* Sähköposti */}
           <Text style={styles.email}>{userData.email}</Text>
         </View>
       )}
 
-      {/* Navigation Links */}
+      {/* Navigointilinkit */}
       <View style={styles.linksContainer}>
         <TouchableOpacity style={styles.linkButton} onPress={() => navigation.navigate('FavoritesScreen')}>
           <Text style={styles.linkText}>Go to Favorites</Text>
@@ -98,7 +99,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Profile Update Action */}
+      {/* Tallennuspainike muokkauksen aikana */}
       {editingName && (
         <View style={styles.actions}>
           <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile}>
@@ -107,7 +108,7 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {/* Sign Out */}
+      {/* Uloskirjautumispainike */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.buttonText}>Sign Out</Text>
@@ -117,11 +118,13 @@ export default function ProfileScreen() {
   );
 }
 
+// Tyylit
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#333333',
+    backgroundColor: '#333333', // Tumma tausta
     padding: 20,
+    paddingTop: 50,
   },
   userInfo: {
     alignItems: 'center',
@@ -147,7 +150,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     width: 200,
-    marginVertical: 5,
     textAlign: 'center',
   },
   editIcon: {
